@@ -56,7 +56,7 @@ public  class MessagesKafkaConsumerContainersTestIT {
     public static final String TEST_MESSAGES_TOPIC = "test-messages";
     public static final String TEST_MESSAGE = "fooBar";
 
-    private static final String EXCEPTION_MSG = "This is a exception thrown for test purposes, IGNORE ME";
+    public static final String EXCEPTION_MSG = "This is a exception thrown for test purposes, IGNORE ME";
 
     @Container
     static KafkaContainer kafka = new KafkaContainer(DockerImageName.parse("confluentinc/cp-kafka:6.1.4"));
@@ -97,7 +97,7 @@ public  class MessagesKafkaConsumerContainersTestIT {
     }
 
     @Test
-    void verify_canSendAndReceive_withoutErrors() throws Exception {
+    void canSendAndReceiveWithoutErrors() throws Exception {
         //given
         var msg = TEST_MESSAGE;
 
@@ -173,8 +173,8 @@ public  class MessagesKafkaConsumerContainersTestIT {
     void failedMessagesAreDiscardedAfterNonRecoverableFailures() throws Exception {
         //given
         var msg = TEST_MESSAGE;
-        doThrow(new RuntimeException(EXCEPTION_MSG))            // to dlt
-                .doThrow(new RuntimeException(EXCEPTION_MSG))   // to dlt
+        doThrow(new RuntimeException(EXCEPTION_MSG))            // discarded
+                .doThrow(new RuntimeException(EXCEPTION_MSG))   // discarded
                 .doNothing().when(loggingMessageProcessor).accept(any(String.class));
 
         //when

@@ -2,6 +2,7 @@ package com.ozeanly.kafka.consumer.blockingretries;
 
 import com.ozeanly.kafka.KafkaClusterConfig;
 import com.ozeanly.kafka.consumer.processor.LoggingMessageProcessor;
+import com.ozeanly.kafka.exception.ConsumerNonRecoverableException;
 import com.ozeanly.kafka.exception.ConsumerRecoverableException;
 import org.apache.kafka.clients.CommonClientConfigs;
 import org.apache.kafka.clients.admin.NewTopic;
@@ -156,6 +157,7 @@ public  class MessagesKafkaConsumerContainersTestIT {
         var msg = TEST_MESSAGE;
         doThrow(new ConsumerRecoverableException(EXCEPTION_MSG))            // 1st retry
                 .doThrow(new ConsumerRecoverableException(EXCEPTION_MSG))   // 2nd retry
+                .doThrow(new ConsumerRecoverableException(EXCEPTION_MSG))   // 3rd retry
                 .doThrow(new ConsumerRecoverableException(EXCEPTION_MSG))   // errorHandler should kick-in
                 .doNothing().when(loggingMessageProcessor).accept(any(String.class));
 
@@ -164,7 +166,7 @@ public  class MessagesKafkaConsumerContainersTestIT {
         boolean msgSent = successfullyProcessedLatch.await(5, TimeUnit.SECONDS); //wait to receive message
 
         //then
-        verify(loggingMessageProcessor, times(3)).accept(any(String.class));
+        verify(loggingMessageProcessor, times(4)).accept(any(String.class));
         assertFalse(msgSent);
     }
 
@@ -173,8 +175,8 @@ public  class MessagesKafkaConsumerContainersTestIT {
     void failedMessagesAreDiscardedAfterNonRecoverableFailures() throws Exception {
         //given
         var msg = TEST_MESSAGE;
-        doThrow(new RuntimeException(EXCEPTION_MSG))            // discarded
-                .doThrow(new RuntimeException(EXCEPTION_MSG))   // discarded
+        doThrow(new ConsumerNonRecoverableException(EXCEPTION_MSG))            // discarded
+                .doThrow(new ConsumerNonRecoverableException(EXCEPTION_MSG))   // discarded
                 .doNothing().when(loggingMessageProcessor).accept(any(String.class));
 
         //when

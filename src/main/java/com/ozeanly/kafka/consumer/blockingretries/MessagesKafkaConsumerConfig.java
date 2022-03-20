@@ -2,7 +2,7 @@ package com.ozeanly.kafka.consumer.blockingretries;
 
 import com.ozeanly.kafka.KafkaClusterConfig;
 import com.ozeanly.kafka.consumer.processor.LoggingMessageProcessor;
-import com.ozeanly.kafka.exception.ConsumerRecoverableException;
+import com.ozeanly.kafka.exception.ConsumerNonRecoverableException;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.common.serialization.Deserializer;
 import org.apache.kafka.common.serialization.StringDeserializer;
@@ -15,11 +15,12 @@ import org.springframework.kafka.annotation.EnableKafka;
 import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
 import org.springframework.kafka.core.ConsumerFactory;
 import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
-import org.springframework.retry.policy.SimpleRetryPolicy;
-import org.springframework.retry.support.RetryTemplate;
+import org.springframework.kafka.listener.CommonErrorHandler;
+import org.springframework.kafka.listener.ContainerProperties;
+import org.springframework.kafka.listener.DefaultErrorHandler;
+import org.springframework.util.backoff.FixedBackOff;
 
 import java.util.List;
-import java.util.Map;
 
 @EnableKafka
 @Configuration
@@ -56,20 +57,16 @@ public class MessagesKafkaConsumerConfig extends KafkaClusterConfig {
         factory.setConsumerFactory(consumerFactory(valueDeserializer));
         factory.setConcurrency(consumerConcurrency);
 
-        // First executes a simple retry strategy, if it fails the error handler takes over
-        factory.setRetryTemplate(retryTemplate());
-        factory.setErrorHandler((exception, data) -> LOG.error("cannot process record=[{}]", data, exception));
-
+        factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.RECORD);
+        factory.setCommonErrorHandler(retryingErrorHandler());
         return factory;
     }
 
-    private RetryTemplate retryTemplate() {
-        var retryTemplate = new RetryTemplate();
-        // RetryPolicy is used to set the number of attempts to retry and what exceptions
-        // you want to try and what you don't want to retry
-        retryTemplate.setRetryPolicy(
-                new SimpleRetryPolicy(retryMaxAttempts, Map.of(ConsumerRecoverableException.class, true),true));
-        return retryTemplate;
+
+    private CommonErrorHandler retryingErrorHandler() {
+        var errorHandler = new DefaultErrorHandler(new FixedBackOff(1000L, retryMaxAttempts));
+        errorHandler.addNotRetryableExceptions(ConsumerNonRecoverableException.class);
+        return errorHandler;
     }
 
 
@@ -82,7 +79,6 @@ public class MessagesKafkaConsumerConfig extends KafkaClusterConfig {
 
         props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
         props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, false);
-
         return new DefaultKafkaConsumerFactory<>(props, new StringDeserializer(), valueDeserializer);
     }
 
